@@ -1,4 +1,99 @@
-600 },
+/*
+*
+* Copyright (C) 2007 Google, Inc.
+* Copyright (c) 2007-2010, Code Aurora Forum. All rights reserved.
+*
+* This software is licensed under the terms of the GNU General Public
+* License version 2, as published by the Free Software Foundation, and
+* may be copied, distributed, and modified under those terms.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+*/
+
+#include <linux/version.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/errno.h>
+#include <linux/string.h>
+#include <linux/delay.h>
+#include <linux/clk.h>
+#include <linux/cpufreq.h>
+#include <linux/mutex.h>
+#include <linux/io.h>
+#include <linux/sort.h>
+#include <mach/board.h>
+#include <mach/msm_iomap.h>
+#include <asm/mach-types.h>
+
+#include "smd_private.h"
+#include "clock.h"
+#include "clock-local.h"
+#include "clock-7x30.h"
+#include "acpuclock.h"
+#include "spm.h"
+
+#define SCSS_CLK_CTL_ADDR (MSM_ACC_BASE + 0x04)
+#define SCSS_CLK_SEL_ADDR (MSM_ACC_BASE + 0x08)
+
+#define PLL2_L_VAL_ADDR (MSM_CLK_CTL_BASE + 0x33C)
+
+#define dprintk(msg...) \
+cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "cpufreq-msm", msg)
+
+#define VREF_SEL 1 /* 0: 0.625V (50mV step), 1: 0.3125V (25mV step). */
+#define V_STEP (25 * (2 - VREF_SEL)) /* Minimum voltage step size. */
+#define VREG_DATA (VREG_CONFIG | (VREF_SEL << 5))
+#define VREG_CONFIG (BIT(7) | BIT(6)) /* Enable VREG, pull-down if disabled. */
+/* Cause a compile error if the voltage is not a multiple of the step size. */
+#define MV(mv) ((mv) / (!((mv) % V_STEP)))
+/* mv = (750mV + (raw * 25mV)) * (2 - VREF_SEL) */
+#define VDD_RAW(mv) (((MV(mv) / V_STEP) - 30) | VREG_DATA)
+
+#define MAX_AXI_KHZ 192000
+#define SEMC_ACPU_MIN_UV_MV 750U
+#define SEMC_ACPU_MAX_UV_MV 1525U
+#define OVERCLOCK_CPU_LOW 0 /* set to 0 to enable 2.0 GHz */
+
+struct clock_state {
+struct clkctl_acpu_speed  *current_speed;
+struct mutex	lock;
+uint32_t	acpu_switch_time_us;
+uint32_t	vdd_switch_time_us;
+struct clk	*ebi1_clk;
+};
+
+struct clkctl_acpu_speed {
+unsigned int	acpu_clk_khz;
+int	src;
+unsigned int	acpu_src_sel;
+unsigned int	acpu_src_div;
+unsigned int	axi_clk_hz;
+unsigned int	vdd_mv;
+unsigned int	vdd_raw;
+unsigned long	lpj; /* loops_per_jiffy */
+};
+
+static struct clock_state drv_state = { 0 };
+
+static struct cpufreq_frequency_table freq_table[] = {
+{ 0, 24576 },
+{ 1, 61440 },
+{ 2, 134400 },
+{ 3, 184320 },
+{ 4, 249600 },
+{ 5, 364800 },
+{ 6, 460800 },
+{ 7, 576000 },
+{ 8, 652800 },
+{ 9, 768000 },
+/* 806.4MHz is updated to 1024MHz at runtime for MSM8x55. */
+{ 10, 806400 },
+{ 11, 921600 },
+{ 12, 1024600 },
 { 13, 1113600 },
 { 14, 1209600 },
 { 15, 1305600 },
