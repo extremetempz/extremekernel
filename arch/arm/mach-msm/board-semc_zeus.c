@@ -3174,7 +3174,7 @@ int zeus_wifi_set_carddetect(int val)
 }
 
 static struct mmc_platform_data msm7x30_sdc3_data = {
-	.ocr_mask	= MMC_VDD_165_195 | MMC_VDD_27_28 | MMC_VDD_28_29,
+        .ocr_mask  = MMC_VDD_165_195 | MMC_VDD_20_21 | MMC_VDD_21_22, 
 	.translate_vdd = msm_sdcc_setup_power,
 	.mmc_bus_width = MMC_CAP_4_BIT_DATA,
 	.sdiowakeup_irq = MSM_GPIO_TO_INT(118),
