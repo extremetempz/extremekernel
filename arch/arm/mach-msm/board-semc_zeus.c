@@ -131,7 +131,6 @@
 #ifdef CONFIG_PMIC_GPIO_25
 #define PMIC_GPIO_SD_POWER	25
 #endif
-
 #define BT_GPIO_EN			(103)
 #define BT_GPIO_WAKE			(106)
 #define BT_GPIO_HOST_WAKE		(18)
@@ -144,7 +143,7 @@
 
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
 #define MSM_RAM_CONSOLE_START   (0x50000000 - MSM_RAM_CONSOLE_SIZE)
-#define MSM_RAM_CONSOLE_SIZE    (128 * SZ_1K)
+#define MSM_RAM_CONSOLE_SIZE    (64 * SZ_1K)
 #endif
 
 #define USB_VREG_MV		3500	/* usb voltage regulator mV */
